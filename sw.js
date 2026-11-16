@@ -1,16 +1,14 @@
 // KoFHA ERP service worker.
-// Raise VERSION whenever this file, the icons or the CDN library versions change.
-// The dashboard page itself is always fetched from the network first, so a new KoFHA_Dashboard.html
-// reaches users on their next open even without changing VERSION.
-// Supabase (data, sign-in) is never cached: requests to other hosts pass straight through.
-const VERSION = "kofha-2026-11-16-1";
+// Raise VERSION whenever a file is added to or removed from SHELL, or a CDN library version changes.
+// Own files (page, css, js, icons) are always read from the network first (revalidated), so an upload reaches users
+// on their next open; the cached copy is used only offline. Supabase (data, sign-in) is never touched here:
+// the page keeps its own offline copies of report answers (js/core.js, OFF).
+const VERSION = "kofha-2026-11-16-2";
 const SHELL = [
-  "./KoFHA_Dashboard.html",
-  "./manifest.webmanifest",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
-  "./icons/maskable-512.png",
-  "./icons/apple-touch-icon.png"
+  "./KoFHA_Dashboard.html", "./manifest.webmanifest", "./css/app.css",
+  "./js/core.js", "./js/overview.js", "./js/modules.js", "./js/designer.js", "./js/reports.js",
+  "./js/salary-billing.js", "./js/ask.js", "./js/appearance.js", "./js/pwa.js",
+  "./icons/icon-192.png", "./icons/icon-512.png", "./icons/maskable-512.png", "./icons/apple-touch-icon.png"
 ];
 const CDN = [
   "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js",
@@ -21,7 +19,6 @@ const CDN_HOSTS = ["cdn.jsdelivr.net", "cdnjs.cloudflare.com", "fonts.googleapis
 self.addEventListener("install", event => {
   // own files must cache; a CDN that is slow or blocked must not stop the install
   event.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL).then(() => Promise.all(CDN.map(u => c.add(u).catch(() => null))))));
-  // no skipWaiting here: the page asks the user ("New version: Reload") and then sends SKIP_WAITING
 });
 
 self.addEventListener("activate", event => {
@@ -40,22 +37,15 @@ self.addEventListener("fetch", event => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
 
-  // the page: network first (latest version), the cached copy only when offline
-  if (req.mode === "navigate" || (url.origin === location.origin && url.pathname.endsWith(".html"))) {
+  // own files: network first (revalidated), the cached copy only when offline
+  if (url.origin === location.origin) {
     event.respondWith(
-      fetch(req).then(res => {
+      fetch(req, { cache: "no-cache" }).then(res => {
         if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
         return res;
-      }).catch(() => caches.match(req, { ignoreSearch: true }).then(hit => hit || caches.match("./KoFHA_Dashboard.html")))
+      }).catch(() => caches.match(req, { ignoreSearch: true })
+        .then(hit => hit || (req.mode === "navigate" ? caches.match("./KoFHA_Dashboard.html") : undefined)))
     );
-    return;
-  }
-  // own files (icons, manifest): cache, refreshed in the background
-  if (url.origin === location.origin) {
-    event.respondWith(caches.match(req).then(hit => {
-      const net = fetch(req).then(res => { if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); } return res; }).catch(() => hit);
-      return hit || net;
-    }));
     return;
   }
   // libraries and fonts (fixed versions): cache first
