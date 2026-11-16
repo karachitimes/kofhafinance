@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>KoFHA ERP · Management Dashboard</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0E9F9A">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="KoFHA ERP">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -588,6 +596,7 @@ details.dax pre{white-space:pre-wrap;font-size:11.5px;max-width:520px;margin:6px
     <div class="topbar">
       <div><h1 id="pageTitle">Overview</h1><div class="stamp" id="updatedAt"></div></div>
       <div class="grow"></div>
+      <button class="btn ghost hidden" id="installBtn" type="button" title="Install KoFHA ERP as an app on this phone or computer">Install app</button>
       <span class="bm-st" id="bmSt"></span>
       <button class="btn ghost" id="bmBtn" type="button" title="Match the bank statement with the GL. Only lines not matched before are read. Shift + click = forget the matches and start again.">Match bank</button>
       <button class="health-chip hidden" id="healthChip" type="button" title="Open the System check"></button>
@@ -3549,6 +3558,42 @@ $("collapseBtn").addEventListener("click", () => { UI.collapsed = !UI.collapsed;
 applyUI(false);
 
 boot();
+</script>
+<div id="pwaBar" class="hidden" role="status" style="position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9999;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.25);padding:10px 14px;display:flex;gap:10px;align-items:center;max-width:calc(100vw - 32px)">
+  <span id="pwaMsg"></span><button class="btn" id="pwaGo" type="button" style="min-height:32px;padding:6px 12px">Reload</button>
+</div>
+<script>
+// Installable app (PWA): service worker, Install button, "new version" prompt, offline notice.
+(function () {
+  const bar = document.getElementById("pwaBar"), msg = document.getElementById("pwaMsg"), go = document.getElementById("pwaGo"), ib = document.getElementById("installBtn");
+  const show = (text, btn, fn) => { msg.textContent = text; go.classList.toggle("hidden", !btn); go.textContent = btn || ""; go.onclick = fn || null; bar.classList.remove("hidden"); };
+  const hide = () => bar.classList.add("hidden");
+
+  // Install button (Android / Windows / Mac Chrome and Edge); iPhone: Share > Add to Home Screen
+  let deferred = null;
+  window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferred = e; if (ib) ib.classList.remove("hidden"); });
+  if (ib) ib.addEventListener("click", async () => { if (!deferred) return; deferred.prompt(); try { await deferred.userChoice; } catch (_) {} deferred = null; ib.classList.add("hidden"); });
+  window.addEventListener("appinstalled", () => { if (ib) ib.classList.add("hidden"); });
+
+  // offline / online
+  window.addEventListener("offline", () => show("You are offline: figures cannot be refreshed until the connection is back.", "", null));
+  window.addEventListener("online", hide);
+
+  if (!("serviceWorker" in navigator) || location.protocol === "file:") return;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (reloading) return; reloading = true; location.reload(); });
+  navigator.serviceWorker.register("sw.js").then(reg => {
+    const offer = w => show("A new version of KoFHA ERP is ready.", "Reload", () => w.postMessage("SKIP_WAITING"));
+    if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
+    reg.addEventListener("updatefound", () => {
+      const w = reg.installing; if (!w) return;
+      w.addEventListener("statechange", () => { if (w.state === "installed" && navigator.serviceWorker.controller) offer(w); });
+    });
+    // look for a new version when the app comes back to the screen, and every 30 minutes
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update().catch(() => {}); });
+    setInterval(() => reg.update().catch(() => {}), 30 * 60 * 1000);
+  }).catch(() => { /* the dashboard works without the service worker */ });
+})();
 </script>
 </body>
 </html>
