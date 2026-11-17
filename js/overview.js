@@ -405,10 +405,10 @@ function renderDrill(){
 function renderTxn(){
   const r = S.txn.result; if (!r) return;
   const rows = r.rows || [];
-  $("txnTable").innerHTML = `<thead><tr><th>Date</th><th>Voucher</th><th>Description</th><th>Account</th><th>Bank</th><th>Payment</th><th>Deposit</th></tr></thead><tbody>` +
-    (rows.length ? rows.map(x => `<tr><td>${fmtDate(x.txn_date)}</td><td>${esc(x.voucher_no || "")}</td><td class="txt">${esc(x.description || "")}${x.pay_to ? `<br><small style="color:var(--muted)">${esc(x.pay_to)}</small>` : ""}</td><td class="txt">${esc(x.account || "")}</td><td>${esc(x.bank || "")}</td><td>${x.payment ? money(x.payment, {full:true}) : ""}</td><td>${x.deposit ? money(x.deposit, {full:true}) : ""}</td></tr>`).join("")
-      : `<tr><td class="empty" colspan="7">No entries match these filters. Widen the period or clear a filter.</td></tr>`) +
-    `<tr class="grand"><td colspan="5">${nfR.format(r.total)} entries in total</td><td>${money(r.sum_payment, {full:true})}</td><td>${money(r.sum_deposit, {full:true})}</td></tr></tbody>`;
+  $("txnTable").innerHTML = `<thead><tr><th>Date</th><th>Voucher</th><th>Folio / chq no.</th><th>Description</th><th>Account</th><th>Bank</th><th>Payment</th><th>Deposit</th></tr></thead><tbody>` +
+    (rows.length ? rows.map(x => `<tr><td>${fmtDate(x.txn_date)}</td><td>${esc(x.voucher_no || "")}</td><td>${esc(x.folio_chq_no || "")}</td><td class="txt">${esc(x.description || "")}${x.pay_to ? `<br><small style="color:var(--muted)">${esc(x.pay_to)}</small>` : ""}</td><td class="txt">${esc(x.account || "")}</td><td>${esc(x.bank || "")}</td><td>${x.payment ? money(x.payment, {full:true}) : ""}</td><td>${x.deposit ? money(x.deposit, {full:true}) : ""}</td></tr>`).join("")
+      : `<tr><td class="empty" colspan="8">No entries match these filters. Widen the period or clear a filter.</td></tr>`) +
+    `<tr class="grand"><td colspan="6">${nfR.format(r.total)} entries in total</td><td>${money(r.sum_payment, {full:true})}</td><td>${money(r.sum_deposit, {full:true})}</td></tr></tbody>`;
   const from = r.total ? S.txn.offset + 1 : 0, to = Math.min(S.txn.offset + S.txn.limit, r.total);
   $("pageInfo").textContent = `Showing ${nfR.format(from)} to ${nfR.format(to)} of ${nfR.format(r.total)}`;
   $("prevPage").disabled = S.txn.offset === 0; $("nextPage").disabled = to >= r.total;
@@ -422,8 +422,8 @@ $("txnExport").addEventListener("click", async () => {
   loading(true, "Preparing download");
   try {
     const r = await rpc("rpt_ledger", txnArgs(5000, 0));
-    const out = [["Date","Voucher","Description","Pay to","Account","Bank","Payment","Deposit","Report section","Report line"]]
-      .concat((r.rows || []).map(x => [x.txn_date, x.voucher_no, x.description, x.pay_to, x.account, x.bank, x.payment, x.deposit, x.report_section, x.report_line]));
+    const out = [["Date","Voucher","Folio / chq no.","Description","Pay to","Account","Bank","Payment","Deposit","Report section","Report line"]]
+      .concat((r.rows || []).map(x => [x.txn_date, x.voucher_no, x.folio_chq_no, x.description, x.pay_to, x.account, x.bank, x.payment, x.deposit, x.report_section, x.report_line]));
     downloadCsv(out, "KoFHA_transactions");
     if (r.total > 5000) alert(`The download holds the latest 5,000 of ${nfR.format(r.total)} entries. Narrow the period for the rest.`);
   } catch(e){ alert(e.message); } finally { loading(false); }
