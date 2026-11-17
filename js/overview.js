@@ -185,7 +185,7 @@ function renderOverview(){
   const sec = {}, secSign = {}; (S.data.ie || []).forEach(r => { sec[r.section] = (sec[r.section] || 0) + Number(r.amount); secSign[r.section] = Number(r.sign); });
   const inc = Object.keys(sec).filter(s => secSign[s] < 0), exp = Object.keys(sec).filter(s => secSign[s] > 0);
   const tInc = inc.reduce((a,s)=>a+sec[s],0) || 1, tExp = exp.reduce((a,s)=>a+sec[s],0) || 1;
-  const palInc = [css("--bal"), css("--income"), css("--accent")], palExp = [css("--spend"), css("--bad"), css("--muted")];
+  const palInc = [css("--bal"), css("--income"), css("--gold")], palExp = [css("--spend"), css("--bad"), css("--muted")];
   const short = s => String(s || "");
   drawChart("chMix", {
     type:"bar",
