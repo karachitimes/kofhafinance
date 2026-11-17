@@ -28,11 +28,19 @@ function sourceNote(used, model){
   return `<div class="src">Figures from: ${esc([...new Set(parts)].join("; ") || "no report data")}${model ? " · " + esc(model) : ""}</div>`;
 }
 let askSeq = 0;
+// Ask KoFHA: idle / waiting / answered / failed / stopped (only the newest question moves it)
+const ASK = machine("ask", { initial:"idle", states:{
+  idle:     { on:{ ASK:"waiting" } },
+  waiting:  { on:{ ASK:"waiting", ANSWER:"answered", FAIL:"failed", STOP:"stopped", RESET:"idle" } },
+  answered: { on:{ ASK:"waiting", RESET:"idle" } },
+  failed:   { on:{ ASK:"waiting", RESET:"idle" } },
+  stopped:  { on:{ ASK:"waiting", RESET:"idle" } }
+} });
 async function ask(q){
   q = (q || "").trim(); if (!q) return;
   $("suggest").classList.add("hidden");
   bubble("user", esc(q));
-  const my = ++askSeq, t0 = Date.now();
+  const my = ++askSeq, t0 = Date.now(); ASK.send("ASK");
   const wait = bubble("bot", `<span class="typing" aria-label="Working"><i></i><i></i><i></i></span> <small class="mini" data-el></small> <button class="btn ghost hidden" type="button" data-stop style="margin-left:8px;padding:2px 10px">Stop waiting</button>`);
   const elT = wait.querySelector("[data-el]"), stopB = wait.querySelector("[data-stop]");
   let stopped = false;
@@ -86,11 +94,12 @@ async function ask(q){
     const cp = wait.querySelector("[data-copy]");
     cp.addEventListener("click", () => { try { navigator.clipboard.writeText(data.answer || ""); cp.textContent = "Copied"; setTimeout(() => cp.textContent = "Copy", 1500); } catch(e){} });
     askHist.push({ role:"user", text:q }, { role:"model", text:data.answer || "" });
-  } catch(e){ wait.classList.add("err"); wait.innerHTML = esc(e.message); }
+    if (my === askSeq) ASK.send("ANSWER");
+  } catch(e){ wait.classList.add("err"); wait.innerHTML = esc(e.message); if (my === askSeq) ASK.send(stopped ? "STOP" : "FAIL"); }
   finally { clearInterval(tick); if (my === askSeq) { $("askSend").disabled = false; $("askInput").focus(); } }
 }
 $("askForm").addEventListener("submit", e => { e.preventDefault(); ask($("askInput").value); });
 $("askInput").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask($("askInput").value); } });
 $("askInput").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = Math.min(160, e.target.scrollHeight) + "px"; });
 $("suggest").addEventListener("click", e => { const b = e.target.closest(".chip"); if (b) ask(b.textContent); });
-$("askNew").addEventListener("click", () => { askHist.length = 0; $("thread").innerHTML = ""; $("suggest").classList.remove("hidden"); });
+$("askNew").addEventListener("click", () => { askHist.length = 0; if (ASK.can("RESET")) ASK.send("RESET"); $("thread").innerHTML = ""; $("suggest").classList.remove("hidden"); });

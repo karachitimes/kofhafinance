@@ -64,7 +64,7 @@ $("unitSeg").addEventListener("click", e => {
 document.querySelector("nav.tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) showTab(b.dataset.t); });
 const TITLES = { maker:"Report maker", reports:"Report library", forecast:"Forecast", analysis:"Analysis builder", budgetm:"Releases and commitments", payroll:"Payroll", salary:"Salary history", payables:"Invoices and advances", explorer:"Data explorer", columns:"Columns", lines:"Report lines", designer:"Report designer", ask:"Ask KoFHA", overview:"Overview", ie:"Income and expenditure", budget:"Budget against actual", position:"Financial position", utility:"Utilities and tenants", billing:"Billing and collections", txn:"Transactions" };
 function showTab(t){
-  S.tab = t; $("pageTitle").textContent = TITLES[t] || "";
+  S.tab = t; document.documentElement.dataset.tab = t; $("pageTitle").textContent = TITLES[t] || "";
   document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.t === t)));
   document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "p-" + t));
   if (t === "txn") loadTxn(); else if (MODULES[t]) loadModule(t); else renderAll();
@@ -91,7 +91,7 @@ async function load(){
     if (S.tab === "maker" && RM.last && RM.last.spec) { const sp = RM.last.spec;
       if (sp.type === "format") rmRunFormat(sp.id, sp.period, sp.from, sp.to); else rmRun(sp); }
   } catch(e){ if (e.message !== "signed out") alert("Could not load the figures.\n\n" + e.message); }
-  finally { if (my === reqNo) loading(false); }
+  finally { loading(false); }   // the overlay counts requests, so every start needs its finish
 }
 
 /* ---------- render ---------- */
@@ -393,9 +393,9 @@ function txnArgs(limit, offset){
   return Object.assign(a, S.txn.drill ? S.txn.drill.filter : {});
 }
 async function loadTxn(){
-  renderDrill(); loading(true, "Loading entries");
-  try { S.txn.result = await rpc("rpt_ledger", txnArgs(S.txn.limit, S.txn.offset)); renderTxn(); }
-  catch(e){ if (e.message !== "signed out") $("txnTable").innerHTML = `<tbody><tr><td class="empty">${esc(e.message)}</td></tr></tbody>`; }
+  renderDrill(); loading(true, "Loading entries"); const tok = latest.begin("txn");
+  try { const r = await rpc("rpt_ledger", txnArgs(S.txn.limit, S.txn.offset)); if (!latest.is("txn", tok)) return; S.txn.result = r; renderTxn(); }
+  catch(e){ if (e.message !== "signed out" && latest.is("txn", tok)) $("txnTable").innerHTML = `<tbody><tr><td class="empty">${esc(e.message)}</td></tr></tbody>`; }
   finally { loading(false); }
 }
 function renderDrill(){
@@ -405,10 +405,10 @@ function renderDrill(){
 function renderTxn(){
   const r = S.txn.result; if (!r) return;
   const rows = r.rows || [];
-  $("txnTable").innerHTML = `<thead><tr><th>Date</th><th>Voucher</th><th>Description</th><th>Account</th><th>Bank</th><th>Payment</th><th>Deposit</th></tr></thead><tbody>` +
-    (rows.length ? rows.map(x => `<tr><td>${fmtDate(x.txn_date)}</td><td>${esc(x.voucher_no || "")}</td><td class="txt">${esc(x.description || "")}${x.pay_to ? `<br><small style="color:var(--muted)">${esc(x.pay_to)}</small>` : ""}</td><td class="txt">${esc(x.account || "")}</td><td>${esc(x.bank || "")}</td><td>${x.payment ? money(x.payment, {full:true}) : ""}</td><td>${x.deposit ? money(x.deposit, {full:true}) : ""}</td></tr>`).join("")
-      : `<tr><td class="empty" colspan="7">No entries match these filters. Widen the period or clear a filter.</td></tr>`) +
-    `<tr class="grand"><td colspan="5">${nfR.format(r.total)} entries in total</td><td>${money(r.sum_payment, {full:true})}</td><td>${money(r.sum_deposit, {full:true})}</td></tr></tbody>`;
+  $("txnTable").innerHTML = `<thead><tr><th>Date</th><th>Voucher</th><th>Folio / chq no.</th><th>Description</th><th>Account</th><th>Bank</th><th>Payment</th><th>Deposit</th></tr></thead><tbody>` +
+    (rows.length ? rows.map(x => `<tr><td>${fmtDate(x.txn_date)}</td><td>${esc(x.voucher_no || "")}</td><td>${esc(x.folio_chq_no || "")}</td><td class="txt">${esc(x.description || "")}${x.pay_to ? `<br><small style="color:var(--muted)">${esc(x.pay_to)}</small>` : ""}</td><td class="txt">${esc(x.account || "")}</td><td>${esc(x.bank || "")}</td><td>${x.payment ? money(x.payment, {full:true}) : ""}</td><td>${x.deposit ? money(x.deposit, {full:true}) : ""}</td></tr>`).join("")
+      : `<tr><td class="empty" colspan="8">No entries match these filters. Widen the period or clear a filter.</td></tr>`) +
+    `<tr class="grand"><td colspan="6">${nfR.format(r.total)} entries in total</td><td>${money(r.sum_payment, {full:true})}</td><td>${money(r.sum_deposit, {full:true})}</td></tr></tbody>`;
   const from = r.total ? S.txn.offset + 1 : 0, to = Math.min(S.txn.offset + S.txn.limit, r.total);
   $("pageInfo").textContent = `Showing ${nfR.format(from)} to ${nfR.format(to)} of ${nfR.format(r.total)}`;
   $("prevPage").disabled = S.txn.offset === 0; $("nextPage").disabled = to >= r.total;
@@ -422,8 +422,8 @@ $("txnExport").addEventListener("click", async () => {
   loading(true, "Preparing download");
   try {
     const r = await rpc("rpt_ledger", txnArgs(5000, 0));
-    const out = [["Date","Voucher","Description","Pay to","Account","Bank","Payment","Deposit","Report section","Report line"]]
-      .concat((r.rows || []).map(x => [x.txn_date, x.voucher_no, x.description, x.pay_to, x.account, x.bank, x.payment, x.deposit, x.report_section, x.report_line]));
+    const out = [["Date","Voucher","Folio / chq no.","Description","Pay to","Account","Bank","Payment","Deposit","Report section","Report line"]]
+      .concat((r.rows || []).map(x => [x.txn_date, x.voucher_no, x.folio_chq_no, x.description, x.pay_to, x.account, x.bank, x.payment, x.deposit, x.report_section, x.report_line]));
     downloadCsv(out, "KoFHA_transactions");
     if (r.total > 5000) alert(`The download holds the latest 5,000 of ${nfR.format(r.total)} entries. Narrow the period for the rest.`);
   } catch(e){ alert(e.message); } finally { loading(false); }
