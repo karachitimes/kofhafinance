@@ -1,14 +1,14 @@
 {
   "name": "KoFHA ERP · Management Dashboard",
   "short_name": "KoFHA ERP",
-  "description": "Korangi Fisheries Harbour Authority: finance, budget, billing and bank reports.",
+  "description": "Korangi Fisheries Harbour Authority: finance, budget, utility billing and bank reports.",
   "id": "./KoFHA_Dashboard.html",
   "start_url": "./KoFHA_Dashboard.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0B1620",
-  "theme_color": "#0E9F9A",
+  "background_color": "#FFFFFF",
+  "theme_color": "#022657",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
