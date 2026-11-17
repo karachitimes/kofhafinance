@@ -43,3 +43,20 @@ So `fsm.js` is about 40 lines that follow the robot/XState table format. Unknown
 ## Tests
 
 `node --test tests/fsm.test.js` (Node 18+, nothing to install).
+
+## In the database (Supabase, schema kofha)
+
+| Machine | Table . column | States | Mode |
+|---|---|---|---|
+| `bank_match_job` | `bank_match_request.status` | (new) → queued → running → done / failed | Refused if not listed, history kept |
+
+- `kofha.fsm_transition`: the allowed changes, one row each. Add a row to allow a new change.
+- `kofha.fsm_log`: history (who, when, from, to, why).
+- `kofha.fsm_guard()`: one generic trigger with three modes:
+  - `log`: refuse unlisted changes and keep history;
+  - `nolog`: refuse, no history;
+  - `audit`: never refuse, only keep history. Use it for tables the Excel push writes.
+- `public.fsm_describe(p_machine, p_log)`: the machines and their latest changes, for the dashboard and AI agents.
+- Pattern taken from felixge's "State machines in PostgreSQL", pgfsm and thoughtbot's transition history.
+- Bank match lines, "forget all" and the fiscal year are left as they are (decided 17-Nov-2026).
+- Record: `135b_bank_match_incremental.sql` (17-Nov-2026 a and b).
