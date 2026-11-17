@@ -64,7 +64,7 @@ $("unitSeg").addEventListener("click", e => {
 document.querySelector("nav.tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) showTab(b.dataset.t); });
 const TITLES = { maker:"Report maker", reports:"Report library", forecast:"Forecast", analysis:"Analysis builder", budgetm:"Releases and commitments", payroll:"Payroll", salary:"Salary history", payables:"Invoices and advances", explorer:"Data explorer", columns:"Columns", lines:"Report lines", designer:"Report designer", ask:"Ask KoFHA", overview:"Overview", ie:"Income and expenditure", budget:"Budget against actual", position:"Financial position", utility:"Utilities and tenants", billing:"Billing and collections", txn:"Transactions" };
 function showTab(t){
-  S.tab = t; $("pageTitle").textContent = TITLES[t] || "";
+  S.tab = t; document.documentElement.dataset.tab = t; $("pageTitle").textContent = TITLES[t] || "";
   document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.t === t)));
   document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "p-" + t));
   if (t === "txn") loadTxn(); else if (MODULES[t]) loadModule(t); else renderAll();
@@ -91,7 +91,7 @@ async function load(){
     if (S.tab === "maker" && RM.last && RM.last.spec) { const sp = RM.last.spec;
       if (sp.type === "format") rmRunFormat(sp.id, sp.period, sp.from, sp.to); else rmRun(sp); }
   } catch(e){ if (e.message !== "signed out") alert("Could not load the figures.\n\n" + e.message); }
-  finally { if (my === reqNo) loading(false); }
+  finally { loading(false); }   // the overlay counts requests, so every start needs its finish
 }
 
 /* ---------- render ---------- */
@@ -393,9 +393,9 @@ function txnArgs(limit, offset){
   return Object.assign(a, S.txn.drill ? S.txn.drill.filter : {});
 }
 async function loadTxn(){
-  renderDrill(); loading(true, "Loading entries");
-  try { S.txn.result = await rpc("rpt_ledger", txnArgs(S.txn.limit, S.txn.offset)); renderTxn(); }
-  catch(e){ if (e.message !== "signed out") $("txnTable").innerHTML = `<tbody><tr><td class="empty">${esc(e.message)}</td></tr></tbody>`; }
+  renderDrill(); loading(true, "Loading entries"); const tok = latest.begin("txn");
+  try { const r = await rpc("rpt_ledger", txnArgs(S.txn.limit, S.txn.offset)); if (!latest.is("txn", tok)) return; S.txn.result = r; renderTxn(); }
+  catch(e){ if (e.message !== "signed out" && latest.is("txn", tok)) $("txnTable").innerHTML = `<tbody><tr><td class="empty">${esc(e.message)}</td></tr></tbody>`; }
   finally { loading(false); }
 }
 function renderDrill(){

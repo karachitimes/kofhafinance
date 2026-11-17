@@ -1,8 +1,7 @@
 // Installable app (PWA): service worker, Install button, "new version" prompt, offline notice.
 (function () {
-  const bar = document.getElementById("pwaBar"), msg = document.getElementById("pwaMsg"), go = document.getElementById("pwaGo"), ib = document.getElementById("installBtn");
-  const show = (text, btn, fn) => { msg.textContent = text; go.classList.toggle("hidden", !btn); go.textContent = btn || ""; go.onclick = fn || null; bar.classList.remove("hidden"); };
-  const hide = () => bar.classList.add("hidden");
+  // the bottom bar is the NOTICE machine in core.js (states: hidden, offline, offline_copy, update)
+  const ib = document.getElementById("installBtn");
 
   // Install button (Android / Windows / Mac Chrome and Edge); iPhone: Share > Add to Home Screen
   let deferred = null;
@@ -11,14 +10,14 @@
   window.addEventListener("appinstalled", () => { if (ib) ib.classList.add("hidden"); });
 
   // offline / online
-  window.addEventListener("offline", () => show("You are offline: figures cannot be refreshed until the connection is back.", "", null));
-  window.addEventListener("online", hide);
+  window.addEventListener("offline", () => NOTICE.send("OFFLINE"));
+  window.addEventListener("online", () => NOTICE.send("ONLINE"));
 
   if (!("serviceWorker" in navigator) || location.protocol === "file:") return;
   let reloading = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => { if (reloading) return; reloading = true; location.reload(); });
   navigator.serviceWorker.register("sw.js").then(reg => {
-    const offer = w => show("A new version of KoFHA ERP is ready.", "Reload", () => w.postMessage("SKIP_WAITING"));
+    const offer = w => NOTICE.send("UPDATE", w);
     if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
     reg.addEventListener("updatefound", () => {
       const w = reg.installing; if (!w) return;

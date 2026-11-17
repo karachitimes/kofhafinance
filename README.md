@@ -22,3 +22,7 @@ Android APK (PWABuilder, Trusted Web Activity)
 Offline
 - Every report answer the app has received is kept on the device (IndexedDB) and shown when there is no internet, with "Offline: figures as of ...".
 - Actions that change data (Match bank, Confirm / Reject, pushes) never run offline. Sign out clears the offline copies.
+
+## State machines
+
+Screens, the loading overlay, the bottom notice bar, bank matching and Ask KoFHA each have a small state machine (`js/fsm.js`). See [docs/STATE_MACHINES.md](docs/STATE_MACHINES.md). In the browser console, `KOFHA.snapshot()` shows what the page is doing. Tests: `node --test tests/fsm.test.js`.

@@ -38,11 +38,32 @@ function fmtDate(d){ if(!d) return ""; const x = new Date(d + "T00:00:00"); retu
 function iso(d){ const z = new Date(d.getTime() - d.getTimezoneOffset()*60000); return z.toISOString().slice(0,10); }
 function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function css(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
-function loading(on, text){ $("loadingText").textContent = text || "Loading figures"; $("loading").classList.toggle("hidden", !on); }
+// Busy overlay: counts open requests, so the overlay stays until the last one finishes (two loads at once used to hide it early).
+const BUSY = machine("busy", { initial:"idle", states:{ idle:{ on:{ START:"busy" } }, busy:{ on:{ START:"busy", DONE:"idle" } } } });
+let busyN = 0;
+function loading(on, text){
+  if (on) { busyN++; $("loadingText").textContent = text || "Loading figures"; BUSY.send("START"); }
+  else if (busyN > 0 && --busyN === 0) BUSY.send("DONE");
+  $("loading").classList.toggle("hidden", busyN === 0);
+}
+function loadingReset(){ busyN = 0; if (BUSY.state !== "idle") BUSY.send("DONE"); $("loading").classList.add("hidden"); }
+
+// Which screen is shown: setup (no key) / public summary / sign-in / the dashboard. One screen at a time.
+const SCREEN = machine("screen", { initial:"boot", states:{
+  boot:   { on:{ NEED_KEY:"setup", PUBLIC:"public", SIGNED_IN:"app", SIGN_IN:"gate" } },
+  setup:  { on:{ KEY_SAVED:"boot" } },
+  public: { on:{ PUBLIC:"public", SIGN_IN:"gate" } },
+  gate:   { on:{ PUBLIC:"public", SIGN_IN:"gate", SIGNED_IN:"app" } },
+  app:    { on:{ SIGN_IN:"gate", SIGNED_IN:"app" } }
+} });
+SCREEN.subscribe(st => {
+  ["setup","pub","gate","app"].forEach(id => $(id).classList.toggle("hidden", id !== ({ setup:"setup", public:"pub", gate:"gate", app:"app" })[st]));
+  if (st !== "app") loadingReset();
+});
 
 /* ---------- start ---------- */
 async function boot(){
-  if (!apiKey()) { $("setup").classList.remove("hidden"); return; }
+  if (!apiKey()) { SCREEN.send("NEED_KEY"); return; }
   sb = supabase.createClient(SUPABASE_URL, apiKey(), { auth:{ persistSession:true, storageKey:"kofha-dashboard" } });
   const { data } = await sb.auth.getSession();
   if (data && data.session) { start(data.session); return; }
@@ -50,11 +71,11 @@ async function boot(){
   if (!navigator.onLine) { try { const s = JSON.parse(localStorage.getItem("kofha-dashboard") || "null"); if (s && s.user) { start(s); return; } } catch(_) {} }
   showPublic();
 }
-function showGate(msg){ $("app").classList.add("hidden"); $("pub").classList.add("hidden"); $("gate").classList.remove("hidden"); $("loginErr").textContent = msg || ""; }
+function showGate(msg){ SCREEN.send("SIGN_IN"); $("loginErr").textContent = msg || ""; }
 
 /* ---------- public summary (no sign-in): totals prepared every 15 minutes by Supabase ---------- */
 async function showPublic(fy){
-  $("app").classList.add("hidden"); $("gate").classList.add("hidden"); $("pub").classList.remove("hidden");
+  SCREEN.send("PUBLIC");
   const body = $("pubBody");
   try {
     const { data, error } = await sb.rpc("rpt_public_summary", { p: fy ? { fy } : {} });
@@ -152,7 +173,7 @@ $("loginBack").addEventListener("click", () => showPublic($("pubFy").value || un
 $("setupForm").addEventListener("submit", (e) => {
   e.preventDefault(); const k = $("setupKey").value.trim();
   try { localStorage.setItem("kofha.sbkey", k); } catch(err) {}
-  $("setup").classList.add("hidden"); boot();
+  SCREEN.send("KEY_SAVED"); boot();
 });
 $("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault(); $("loginBtn").disabled = true; $("loginErr").textContent = "";
@@ -175,12 +196,23 @@ const OFF = {
   async clear(){ try { const db = await this.open(); db.transaction("rpc", "readwrite").objectStore("rpc").clear(); } catch(_) {} },
   isNet: m => !navigator.onLine || /Failed to fetch|NetworkError|Load failed|network/i.test(String(m || ""))
 };
-function offlineNote(t){
+// Bottom notice bar. A "new version" offer is never pushed aside by an offline / online message.
+const NOTICE = machine("notice", { initial:"hidden", states:{
+  hidden:       { on:{ OFFLINE:"offline", CACHED:"offline_copy", UPDATE:"update" } },
+  offline:      { on:{ ONLINE:"hidden", CACHED:"offline_copy", UPDATE:"update", OFFLINE:"offline" } },
+  offline_copy: { on:{ ONLINE:"hidden", CACHED:"offline_copy", UPDATE:"update", OFFLINE:"offline_copy" } },
+  update:       { on:{ UPDATE:"update" } }
+} });
+NOTICE.subscribe((st, prev, ev, d) => {
   const bar = document.getElementById("pwaBar"), msg = document.getElementById("pwaMsg"), go = document.getElementById("pwaGo");
-  if (!bar) return; OFF.asOf = t;
-  msg.textContent = "Offline: figures as of " + new Date(t).toLocaleString() + ". They refresh when the internet is back.";
-  go.classList.add("hidden"); bar.classList.remove("hidden");
-}
+  if (!bar) return;
+  const show = (text, btn, fn) => { msg.textContent = text; go.classList.toggle("hidden", !btn); go.textContent = btn || ""; go.onclick = fn || null; bar.classList.remove("hidden"); };
+  if (st === "hidden") bar.classList.add("hidden");
+  else if (st === "offline") show("You are offline: figures cannot be refreshed until the connection is back.");
+  else if (st === "offline_copy") show("Offline: figures as of " + new Date(OFF.asOf).toLocaleString() + ". They refresh when the internet is back.");
+  else if (st === "update") show("A new version of KoFHA ERP is ready.", "Reload", () => d && d.postMessage("SKIP_WAITING"));
+});
+function offlineNote(t){ OFF.asOf = t; NOTICE.send("CACHED"); }
 async function rpc(name, args){
   const key = name + "|" + JSON.stringify(args || {});
   let res;
@@ -219,7 +251,7 @@ async function openHealthReport(){
   for (let i = 0; i < 40; i++) { if (RL.list && RL.list.find(x => x.id === "system_health")) { openReport("system_health"); return; } await new Promise(r => setTimeout(r, 250)); }
 }
 async function start(session){
-  $("gate").classList.add("hidden"); $("pub").classList.add("hidden"); $("app").classList.remove("hidden");
+  SCREEN.send("SIGNED_IN");
   $("userEmail").textContent = session.user.email;
   $("avatar").textContent = (session.user.email || "K").charAt(0).toUpperCase();
   loading(true, "Loading lists");

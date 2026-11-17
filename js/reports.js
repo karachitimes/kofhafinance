@@ -80,11 +80,19 @@ $("healthChip").addEventListener("click", openHealthReport);
 // Bank matching: runs only when this button is pressed (nothing runs by itself). The matching takes minutes and works in
 // the background; only lines not matched before are read. Shift + click forgets the matches and starts again.
 let BM_TIMER = null;
+// Bank matching job as seen by this page: idle (never run) / running / failed / done. Server rows carry queued|running|failed|done.
+const BANKMATCH = machine("bankmatch", { initial:"idle", states:{
+  idle:    { on:{ RUNNING:"running", FAILED:"failed", DONE:"done", IDLE:"idle" } },
+  running: { on:{ RUNNING:"running", FAILED:"failed", DONE:"done", IDLE:"idle" } },
+  failed:  { on:{ RUNNING:"running", FAILED:"failed", DONE:"done", IDLE:"idle" } },
+  done:    { on:{ RUNNING:"running", FAILED:"failed", DONE:"done", IDLE:"idle" } }
+} });
 function bmShow(list){
   const st = $("bmSt"); if (!st) return;
   const act = (list || []).filter(x => x.status === "queued" || x.status === "running");
   const bad = (list || []).filter(x => x.status === "failed");
   const done = (list || []).filter(x => x.status === "done" && x.finished);
+  BANKMATCH.send(act.length ? "RUNNING" : bad.length ? "FAILED" : done.length ? "DONE" : "IDLE");
   if (act.length) { st.textContent = "Matching " + (list.length - act.length) + " of " + list.length + " bank accounts done..."; $("bmBtn").disabled = true; return; }
   $("bmBtn").disabled = false;
   if (bad.length) { st.textContent = bad.length + " bank account(s) failed: " + String(bad[0].error || "").slice(0, 80); return; }
@@ -118,9 +126,11 @@ function fmtCell(v, t){
 }
 async function runReport(){
   const r = RL.current; if (!r) return;
-  loading(true, "Running " + r.title);
+  loading(true, "Running " + r.title); const tok = latest.begin("report");
   try {
-    const d = await rpc("rpt_run_report", { p_id:r.id, p_params:reportArgs() }); RL.last = d;
+    const d = await rpc("rpt_run_report", { p_id:r.id, p_params:reportArgs() });
+    if (!latest.is("report", tok)) return;   // a newer run (other report or other filters) is on its way
+    RL.last = d;
     if ($("rlPeriodTxt")) $("rlPeriodTxt").value = fmtDate(S.from) + " to " + fmtDate(S.to);
     $("rlOutTitle").textContent = d.title || r.title; $("rlOutSub").textContent = [ (d.ref_line || []).join("    "), d.subtitle, d.intro ].filter(Boolean).join("  ·  ");
     $("rlExtra").innerHTML = (d.extra || []).map(x => `<div class="fig bal"><div class="lbl">${esc(x.label)}</div><div class="val">${fmtCell(x.value, x.type)}</div></div>`).join("");
@@ -156,7 +166,7 @@ async function runReport(){
           options: { ...baseOpts({ money:true }), ...(ch.stacked ? { scales:{ x:{ stacked:true, ticks:{ color:css("--muted") }, grid:{ display:false } }, y:{ stacked:true, ticks:{ color:css("--muted") }, grid:{ color:css("--line") } } } } : {}) } });
       }
     }
-  } catch(e){ $("rlTable").innerHTML = `<tbody><tr><td class="empty">${esc(e.message)}</td></tr></tbody>`; }
+  } catch(e){ if (latest.is("report", tok)) $("rlTable").innerHTML = `<tbody><tr><td class="empty">${esc(e.message)}</td></tr></tbody>`; }
   finally { loading(false); }
 }
 // "Bank match - proposed": Confirm all with a score at or above the number given (never a difference, another Reconcile date or an ambiguous total)
