@@ -1,11 +1,11 @@
 /* =================================================================
    KoFHA ERP — management dashboard
-   Sea-glass palette: soft harbour mist, deep-water ink, one accent
-   the user picks (harbour teal, ocean indigo, coral reef, mangrove).
+   Logo palette: KoFHA navy and gold, one accent the user picks
+   (harbour navy, ocean indigo, coral reef, mangrove).
 ================================================================= */
 :root{
   --bg:#EDF2F5; --bg2:#E3EBF0; --surface:#FFFFFF; --surface2:#F6F9FB; --ink:#132532; --muted:#667B8B; --line:#E1E8ED;
-  --income:#12A594; --spend:#EE8B32; --bal:#4F6BED; --bad:#E0525A; --good:#16A37B;
+  --income:#1F6FD1; --spend:#EE8B32; --bal:#7B5CD6; --bad:#E0525A; --good:#2E9E5B;
   --accent:#0E4289; --accent-ink:#FFFFFF; --accent-soft:#E2EAF6; --gold:#C9A35A; --gold-ink:#06122E;
   --side:#022657; --side-ink:#E6EDF7; --side-muted:#A9BCD8; --side-hover:#0B3B78;
   --shadow:0 1px 2px rgba(19,37,50,.06), 0 8px 24px rgba(19,37,50,.06);
@@ -20,14 +20,14 @@
 :root[data-density="compact"]{ --pad:14px; --gap:12px; font-size:14px }
 @media (prefers-color-scheme: dark){
   :root[data-theme="auto"]{
-    --bg:#0B1620; --bg2:#0F1D29; --surface:#122230; --surface2:#162A3A; --ink:#E6EEF4; --muted:#93A8B8; --line:#20374A;
-    --income:#35C7B4; --spend:#F4A259; --bal:#8EA2FF; --bad:#FF7B82; --good:#3DD39E;
+    --bg:#07111F; --bg2:#0A1729; --surface:#0F1E33; --surface2:#13263F; --ink:#E6EDF7; --muted:#9AABC4; --line:#1E3352;
+    --income:#6AA8FF; --spend:#F4A259; --bal:#B39DFF; --bad:#FF7B82; --good:#5FCB85;
     --accent:#5B8DEF; --accent-soft:#16294A; --side:#06122E; --side-hover:#0F2347; --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.25);
   }
 }
 :root[data-theme="dark"]{
-  --bg:#0B1620; --bg2:#0F1D29; --surface:#122230; --surface2:#162A3A; --ink:#E6EEF4; --muted:#93A8B8; --line:#20374A;
-  --income:#35C7B4; --spend:#F4A259; --bal:#8EA2FF; --bad:#FF7B82; --good:#3DD39E;
+  --bg:#07111F; --bg2:#0A1729; --surface:#0F1E33; --surface2:#13263F; --ink:#E6EDF7; --muted:#9AABC4; --line:#1E3352;
+  --income:#6AA8FF; --spend:#F4A259; --bal:#B39DFF; --bad:#FF7B82; --good:#5FCB85;
   --accent:#5B8DEF; --accent-soft:#16294A; --side:#06122E; --side-hover:#0F2347; --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.25);
 }
 *,*::before,*::after{box-sizing:inherit}
