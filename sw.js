@@ -3,7 +3,7 @@
 // Own files (page, css, js, icons) are always read from the network first (revalidated), so an upload reaches users
 // on their next open; the cached copy is used only offline. Supabase (data, sign-in) is never touched here:
 // the page keeps its own offline copies of report answers (js/core.js, OFF).
-const VERSION = "kofha-2026-11-16-2";
+const VERSION = "kofha-2026-11-17-1";
 const SHELL = [
   "./KoFHA_Dashboard.html", "./manifest.webmanifest", "./css/app.css",
   "./js/core.js", "./js/overview.js", "./js/modules.js", "./js/designer.js", "./js/reports.js",
